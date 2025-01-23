@@ -40,7 +40,7 @@ UNS8 TestAll_bDeviceNodeId = 0x00;
 
 const UNS8 TestAll_iam_a_slave = 0;
 
-TIMER_HANDLE TestAll_heartBeatTimers[1];
+TIMER_HANDLE TestAll_heartBeatTimers[1] = {TIMER_NONE};
 
 /*
 $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
@@ -91,9 +91,17 @@ $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 /* index 0x1014 :   Emergency COB ID */
                     UNS32 TestAll_obj1014 = 0x80 + 0x00;   /* 128 + NodeID */
 
-/* index 0x1016 :   Consumer Heartbeat Time */
-                    UNS8 TestAll_highestSubIndex_obj1016 = 0;
-                    UNS32 TestAll_obj1016[]={0};
+/* index 0x1016 :   Consumer Heartbeat Time. */
+                    UNS8 TestAll_highestSubIndex_obj1016 = 1; /* number of subindex - 1*/
+                    UNS32 TestAll_obj1016[] = 
+                    {
+                      0x20003E8	/* 33555432 */
+                    };
+                    subindex TestAll_Index1016[] = 
+                     {
+                       { RO, uint8, sizeof (UNS8), (void*)&TestAll_highestSubIndex_obj1016, NULL },
+                       { RW, uint32, sizeof (UNS32), (void*)&TestAll_obj1016[0], NULL }
+                     };
 
 /* index 0x1017 :   Producer Heartbeat Time */ 
                     UNS16 TestAll_obj1017 = 0x0;   /* 0 */
@@ -182,6 +190,7 @@ const indextable TestAll_objdict[] =
 {
   { (subindex*)TestAll_Index1000,sizeof(TestAll_Index1000)/sizeof(TestAll_Index1000[0]), 0x1000},
   { (subindex*)TestAll_Index1001,sizeof(TestAll_Index1001)/sizeof(TestAll_Index1001[0]), 0x1001},
+  { (subindex*)TestAll_Index1016,sizeof(TestAll_Index1016)/sizeof(TestAll_Index1016[0]), 0x1016},
   { (subindex*)TestAll_Index1018,sizeof(TestAll_Index1018)/sizeof(TestAll_Index1018[0]), 0x1018},
   { (subindex*)TestAll_Index1280,sizeof(TestAll_Index1280)/sizeof(TestAll_Index1280[0]), 0x1280},
   { (subindex*)TestAll_Index1800,sizeof(TestAll_Index1800)/sizeof(TestAll_Index1800[0]), 0x1800},
@@ -196,11 +205,12 @@ const indextable * TestAll_scanIndexOD (CO_Data *d, UNS16 wIndex, UNS32 * errorC
 	switch(wIndex){
 		case 0x1000: i = 0;break;
 		case 0x1001: i = 1;break;
-		case 0x1018: i = 2;break;
-		case 0x1280: i = 3;break;
-		case 0x1800: i = 4;break;
-		case 0x1A00: i = 5;break;
-		case 0x2000: i = 6;break;
+		case 0x1016: i = 2;break;
+		case 0x1018: i = 3;break;
+		case 0x1280: i = 4;break;
+		case 0x1800: i = 5;break;
+		case 0x1A00: i = 6;break;
+		case 0x2000: i = 7;break;
 		default:
 			*errorCode = OD_NO_SUCH_OBJECT;
 			return NULL;
@@ -218,20 +228,20 @@ s_PDO_status TestAll_PDO_status[1] = {s_PDO_status_Initializer};
 
 const quick_index TestAll_firstIndex = {
   0, /* SDO_SVR */
-  3, /* SDO_CLT */
+  4, /* SDO_CLT */
   0, /* PDO_RCV */
   0, /* PDO_RCV_MAP */
-  4, /* PDO_TRS */
-  5 /* PDO_TRS_MAP */
+  5, /* PDO_TRS */
+  6 /* PDO_TRS_MAP */
 };
 
 const quick_index TestAll_lastIndex = {
   0, /* SDO_SVR */
-  3, /* SDO_CLT */
+  4, /* SDO_CLT */
   0, /* PDO_RCV */
   0, /* PDO_RCV_MAP */
-  4, /* PDO_TRS */
-  5 /* PDO_TRS_MAP */
+  5, /* PDO_TRS */
+  6 /* PDO_TRS_MAP */
 };
 
 const UNS16 TestAll_ObjdictSize = sizeof(TestAll_objdict)/sizeof(TestAll_objdict[0]); 

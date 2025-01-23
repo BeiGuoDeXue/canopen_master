@@ -54,6 +54,7 @@
 /* USER CODE BEGIN PV */
 static UNS32 SDO_TIMEOUT = 1000; // 1秒超时
 static volatile UNS8 SDO_COMPLETE = 0;
+static volatile UNS32 SDO_RESULT = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,53 +65,60 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-// SDO回调函数
-void SDOCallback(CO_Data* d, UNS8 nodeId, UNS16 index, UNS8 subIndex, UNS32 abortCode)
+void SDOCallback(CO_Data* d, UNS8 nodeId)
 {
-    if(abortCode == 0) {
-        printf("SDO写入成功\n");
+    UNS32 abortCode;
+    UNS8 res = getWriteResultNetworkDict(d, nodeId, &abortCode);
+    
+    if (res == SDO_FINISHED) {
+        printf("SDO写入成功: nodeId=0x%02X\n", nodeId);
+        SDO_RESULT = 0;
     } else {
-        printf("SDO写入失败，错误码：0x%X\n", abortCode);
+        printf("SDO写入失败: nodeId=0x%02X, res=0x%02X, abortCode=0x%08X\n", 
+               nodeId, res, abortCode);
+        SDO_RESULT = abortCode;
     }
     SDO_COMPLETE = 1;
 }
 
-
 // SDO写入函数
-UNS8 SDO_Write(CO_Data* d, UNS8 nodeId, UNS16 index, UNS8 subIndex, UNS8* data, UNS32 size)
+UNS8 SDO_Write(CO_Data* d, UNS8 nodeId, UNS16 index, UNS8 subIndex, void* data, UNS32 size)
 {
     UNS8 err;
     UNS32 startTime;
     
     // 重置状态
     SDO_COMPLETE = 0;
+    SDO_RESULT = 0;
     
-    // 发送SDO请求
-    err = writeNetworkDictCallBack(
-        d,                  // CO_Data结构体
-        nodeId,            // 目标节点ID
-        index,             // 目标索引
-        subIndex,          // 子索引
-        size,              // 数据长度
-        uint8,             // 数据类型
-        data,              // 数据指针
-        SDOCallback,       // 回调函数
-        0                  // 字节序
+    // 发送SDO写请求
+    // err = writeNetworkDictCallBack(d, nodeId, index, subIndex, size, data, SDOCallback, 0);
+    err = writeNetworkDictCallBack(d, 
+        nodeId,         // 目标节点
+        index,          // 目标索引
+        subIndex,       // 子索引
+        size,          // 数据长度
+        0,             // 数据类型（0表示自动）
+        data,          // 数据指针
+        SDOCallback,   // 回调函数
+        0              // 字节序
     );
+
+    if (err != 0) {
+        printf("SDO写入请求发送失败: err=0x%02X\n", err);
+        return err;
+    }
     
-    if(err) return err;
-    
-    // 等待完成或超时
+    // 等待响应
     startTime = HAL_GetTick();
-    while(!SDO_COMPLETE) {
-        if(HAL_GetTick() - startTime > SDO_TIMEOUT) {
+    while (!SDO_COMPLETE) {
+        if (HAL_GetTick() - startTime > SDO_TIMEOUT) {
             printf("SDO写入超时\n");
             return 0xFF;
         }
-        HAL_Delay(1);
     }
     
-    return 0;
+    return (SDO_RESULT == 0) ? 0 : 0xFF;
 }
 
 /* USER CODE END 0 */
@@ -155,9 +163,9 @@ int main(void)
 	HAL_TIM_Base_Start_IT(&htim3);
 
 	unsigned char nodeID = 0x00;                   //节点ID
- setNodeId(&TestAll_Data, nodeID);
- setState(&TestAll_Data, Initialisation);				//节点初始化
- setState(&TestAll_Data, Operational);
+	setNodeId(&TestAll_Data, nodeID);
+	setState(&TestAll_Data, Initialisation);				//节点初始化
+	setState(&TestAll_Data, Operational);
 
   /* USER CODE END 2 */
 
@@ -169,60 +177,13 @@ int main(void)
 
     printf("master test\n");
 
-//测试SDO
+    // 打印当前状态
+    printf("主站状态: %d\n", getState(&TestAll_Data));
+    printf("SDO状态: %d\n", TestAll_Data.CurrentCommunicationState.csSDO);
 
-    // 要写入的数据
-//    INTEGER8 data1 = 0x12;  // 因为目标变量test是INTEGER16类型
-
-    // // 发送SDO写入请求
-    // UNS8 res = writeNetworkDict(
-    //     &TestAll_Data,        // CO_Data结构体
-    //     0x02,                 // 目标节点ID (从SdoTest_obj1280_Node_ID_of_the_SDO_Server)
-    //     0x2001,               // 目标索引 (test变量的索引)
-    //     0x00,                 // 子索引
-    //     sizeof(INTEGER8),    // 数据长度
-    //     int8,                // 数据类型 (与test变量类型匹配)
-    //     &data1,                // 数据指针
-    //     0                     // 不使用块传输
-    // );
-    // if(res == 0) {
-    //   printf("SDO写入请求发送成功\r\n");
-    // } else {
-    //   printf("SDO写入请求发送失败: %d\r\n", res); 
-    // }
-    // INTEGER8 data1 = 0x12;
-    // writeNetworkDictCallBack(
-    //     &TestAll_Data,        // CO_Data结构体
-    //     0x02,                 // 目标节点ID
-    //     0x2001,              // 目标索引
-    //     0x00,                // 子索引
-    //     sizeof(INTEGER8),    // 数据长度
-    //     int8,               // 数据类型
-    //     &data1,              // 数据指针
-    //     SDOWriteCallback,    // 回调函数
-    //     0                    // 字节序
-    // );
-
+    // SDO写入测试
     INTEGER8 data1 = 0x12;
-    UNS8 res = SDO_Write(&TestAll_Data, 0x02, 0x2001, 0x00, (UNS8*)&data1, sizeof(INTEGER8));
-    if(res == 0) {
-      printf("SDO写入请求发送成功\r\n");
-    } else {
-      printf("SDO写入请求发送失败: %d\r\n", res); 
-    }
-
-// 调试信息
-		data[0]++;
-    // 添加调试信息
-    printf("Node state: %d\n", TestAll_Data.nodeState);
-    printf("PDO state: %d\n", TestAll_Data.CurrentCommunicationState.csPDO);
-    // 打印更多调试信息
-    printf("PDO transmission type: %d\n", 
-            TestAll_Data.CurrentCommunicationState.csPDO);
-    printf("PDO event timer: %d\n", 
-            TestAll_Data.CurrentCommunicationState.csPDO);
-    printf("PDO inhibit time: %d\n", 
-            TestAll_Data.CurrentCommunicationState.csPDO);
+    UNS8 res = SDO_Write(&TestAll_Data, 0x02, 0x2001, 0x00, &data1, sizeof(INTEGER8));
 
     HAL_Delay(1000);
 	
